@@ -1,20 +1,22 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"log"
-	"strconv"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
-	// "bytes"
+	"log"
+	"net/http"
+	"strconv"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type PostData struct {
 	UserId int `json:"userId"`
 	Id int `json:"id"`
 	Title string `json:"title"`
-	Body string `json"body"`
+	Body string `json:"body"`
 }
 
 type CommentData struct {
@@ -35,6 +37,30 @@ func getPostConn(userId int) {
 
 	var dataFromPost []PostData
 	err = json.Unmarshal(post, &dataFromPost)
+
+	go func () {
+		db, err := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/gogolang")
+		if err != nil {
+			panic(err)
+		}
+		defer db.Close()
+	
+		for _, i := range dataFromPost { 
+			q := "INSERT INTO `posts`(`userId`, `id`, `title`, `body`) VALUES (?,?,?,?)"
+			insert, err := db.Prepare(q)
+			defer insert.Close()
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = insert.Exec(i.UserId, i.Id, i.Title, i.Body)
+			if err != nil {
+				panic(err)
+			}
+
+		}
+		
+	}()
 		
 	for _, x := range dataFromPost {
 		go getCommentFromPost(x.Id)
@@ -48,11 +74,34 @@ func getCommentFromPost(postId int) {
 	}
 
 	comment, _ := ioutil.ReadAll(res.Body)
-
+	
 	var dataFromComment []CommentData
 	err = json.Unmarshal(comment, &dataFromComment)
 
-	fmt.Printf("%v", dataFromComment)
+	go func () {
+		db, err := sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/gogolang")
+		if err != nil {
+			panic(err)
+		}
+		defer db.Close()
+	
+		for _, i := range dataFromComment { 
+			q := "INSERT INTO `comments`(`postId`, `id`, `name`, `email`, `body`) VALUES (?,?,?,?,?)"
+			insert, err := db.Prepare(q)
+			defer insert.Close()
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = insert.Exec(i.PostId, i.Id, i.Name, i.Email, i.Body)
+			if err != nil {
+				panic(err)
+			}
+
+		}
+		
+	}()
+	
 }
 
 func main() {
